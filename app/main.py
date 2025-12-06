@@ -5,13 +5,13 @@ from PIL import Image
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from . import recognition
+from recognition import *
 
 ml_resources = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db = recognition.load_database_from_folder()
+    db = load_database_from_folder()
     ml_resources["known_database"] = db
     yield
     ml_resources.clear()
@@ -50,11 +50,11 @@ async def recognize_face(payload: ImageRequest):
     input_image = decode_base64_image(payload.image_base64)
 
     try:
-        target_vector = recognition.process_image_to_vector(input_image)
+        target_vector = process_image_to_vector(input_image)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    matched_filename, score = recognition.find_match(
+    matched_filename, score = find_match(
         target_vector, 
         known_database, 
         threshold=0.8
@@ -72,7 +72,7 @@ async def recognize_face(payload: ImageRequest):
         }
 
     real_name = matched_filename.split('.')[0]
-    patient_info = recognition.get_patient_info(matched_filename)
+    patient_info = get_patient_info(matched_filename)
 
     if patient_info:
         disease = patient_info["disease"]
