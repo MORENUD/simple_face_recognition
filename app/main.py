@@ -3,6 +3,7 @@ import base64
 import io
 from PIL import Image
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from recognition import *
@@ -17,6 +18,15 @@ async def lifespan(app: FastAPI):
     ml_resources.clear()
 
 app = FastAPI(title="Simple Face Auth API", lifespan=lifespan)
+
+origins = ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ImageRequest(BaseModel):
     image_base64: str
