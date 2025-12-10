@@ -25,7 +25,7 @@ def get_face_embedding(image: Image.Image):
             img_path=img_bgr,
             model_name=MODEL_NAME,
             detector_backend=DETECTOR_BACKEND,
-            anti_spoofing=False,
+            anti_spoofing=True,
             enforce_detection=True
         )
         
