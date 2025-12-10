@@ -3,22 +3,18 @@ import numpy as np
 from PIL import Image
 from deepface import DeepFace
 
-# CONFIGURATION
 MODEL_NAME = "Facenet512"
 DETECTOR_BACKEND = "retinaface"
 
-# Paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
 DATABASE_FOLDER = os.path.join(current_dir, "database_img")
 
-# Mock Database
 MOCK_PATIENT_DB = {
     "Sarah": {"disease": "Diabetes", "current_appointment": "2025-12-31"},
     "Peter": {"disease": "Diabetes", "current_appointment": "2025-12-31"}
 }
 
 def get_face_embedding(image: Image.Image):
-
     try:
         img_rgb = np.array(image.convert("RGB"))
         img_bgr = img_rgb[:, :, ::-1]
@@ -26,7 +22,8 @@ def get_face_embedding(image: Image.Image):
             img_path=img_bgr,
             model_name=MODEL_NAME,
             detector_backend=DETECTOR_BACKEND,
-            enforce_detection=False
+            anti_spoofing=True,
+            enforce_detection=True
         )
         
         if len(embedding_objs) > 0:
@@ -39,7 +36,6 @@ def get_face_embedding(image: Image.Image):
         return None
 
 def load_database_from_folder(folder_path=DATABASE_FOLDER):
-    
     db = {}
     if not os.path.exists(folder_path):
         os.makedirs(folder_path, exist_ok=True)
@@ -66,7 +62,6 @@ def load_database_from_folder(folder_path=DATABASE_FOLDER):
     return db
 
 def find_match(target_encoding, database, threshold=0.4):
-    
     if not database:
         return "Database Empty", 0.0, False
 
@@ -94,7 +89,6 @@ def find_match(target_encoding, database, threshold=0.4):
     return best_match_name, float(similarity_score), is_match
 
 def get_patient_info(filename):
-    
     if filename == "No match" or filename == "Database Empty":
         return None
     name_key = os.path.splitext(filename)[0]
