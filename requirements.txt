@@ -7,4 +7,3 @@ requests
 deepface
 tf-keras
 opencv-python-headless
-retina-face
