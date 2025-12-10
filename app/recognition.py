@@ -3,6 +3,9 @@ import numpy as np
 from PIL import Image
 from deepface import DeepFace
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 MODEL_NAME = "Facenet512"
 DETECTOR_BACKEND = "retinaface"
 
