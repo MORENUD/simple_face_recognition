@@ -42,7 +42,7 @@ class DebugInfo(BaseModel):
     score: float
 
 class PredictionResponse(BaseModel):
-    user_name: str
+    name: str
     disease: str
     current_appointment: str
     debug_info: DebugInfo
@@ -70,7 +70,7 @@ async def recognize_face(payload: ImageRequest):
 
     if target_encoding is None:
         return {
-            "user_name": "No Face Detected",
+            "name": "No Face Detected",
             "disease": "NA",
             "current_appointment": '2099-12-31',
             "debug_info": {"file": "NA", "score": 0.0}
@@ -80,7 +80,7 @@ async def recognize_face(payload: ImageRequest):
 
     if not is_match:
         return {
-            "user_name": "Unknown",
+            "name": "Unknown",
             "disease": "NA",
             "current_appointment": '2099-12-31',
             "debug_info": {
@@ -96,7 +96,7 @@ async def recognize_face(payload: ImageRequest):
     appt_day = patient_info["current_appointment"] if patient_info else "2099-12-31"
 
     return {
-        "user_name": real_name,
+        "name": real_name,
         "disease": disease,
         "current_appointment": appt_day,
         "debug_info": {

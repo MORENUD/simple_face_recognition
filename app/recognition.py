@@ -7,7 +7,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 MODEL_NAME = "Facenet512"
-DETECTOR_BACKEND = "retinaface"
+DETECTOR_BACKEND = "opencv"
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 DATABASE_FOLDER = os.path.join(current_dir, "database_img")
