@@ -14,9 +14,9 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 DATABASE_FOLDER = os.path.join(current_dir, "database_img")
 
 MOCK_PATIENT_DB = {
-    "Sarah": {"disease": "Diabetes", "current_appointment": "2025-12-31"},
+    "Peter": {"disease": "Diabetes", "current_appointment": "2025-12-31"},
     "Peter": {"disease": "Blood Presure", "current_appointment": "2025-12-31"},
-    "Judy": {"disease": "Hyperlipidemia", "current_appointment": "2025-12-31"}
+    "Peter": {"disease": "Hyperlipidemia", "current_appointment": "2025-12-31"}
 }
 
 def get_face_embedding(image: Image.Image):

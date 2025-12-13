@@ -19,9 +19,9 @@ from recognition import (
 ml_resources = {}
 
 MOCK_PATIENT_DB = {
-    "Sarah": {"disease": "Diabetes", "current_appointment": "2025-12-31"},
+    "Peter": {"disease": "Diabetes", "current_appointment": "2025-12-31"},
     "Peter": {"disease": "Blood Presure", "current_appointment": "2025-12-31"},
-    "Judy": {"disease": "Hyperlipidemia", "current_appointment": "2025-12-31"}
+    "Peter": {"disease": "Hyperlipidemia", "current_appointment": "2025-12-31"}
 }
 
 @asynccontextmanager
