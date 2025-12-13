@@ -1,138 +1,114 @@
-import uvicorn
-import base64
-import io
 import os
-import random  # <--- Added random
+import numpy as np
+import traceback
 from PIL import Image
-from contextlib import asynccontextmanager
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from deepface import DeepFace
 
-from recognition import (
-    load_database_from_folder, 
-    get_face_embedding, 
-    find_match, 
-    get_patient_info
-)
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
-# --- MOCK DATA ---
+MODEL_NAME = "Facenet512"
+DETECTOR_BACKEND = "opencv"
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+DATABASE_FOLDER = os.path.join(current_dir, "database_img")
+
 MOCK_PATIENT_DB = {
     "Sarah": {"disease": "Diabetes", "current_appointment": "2025-12-31"},
-    "Peter": {"disease": "Blood Pressure", "current_appointment": "2025-12-31"}
+    "Peter": {"disease": "Blood Presure", "current_appointment": "2025-12-31"},
+    "Judy": {"disease": "Hyperlipidemia", "current_appointment": "2025-12-31"}
 }
 
-ml_resources = {}
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+def get_face_embedding(image: Image.Image):
     try:
-        db = load_database_from_folder()
-        ml_resources["known_database"] = db
+        img_rgb = np.array(image.convert("RGB"))
+        img_bgr = img_rgb[:, :, ::-1]
+        
+        print(f"DEBUG: Processing image shape: {img_bgr.shape}")
+
+        embedding_objs = DeepFace.represent(
+            img_path=img_bgr,
+            model_name=MODEL_NAME,
+            detector_backend=DETECTOR_BACKEND,
+            align=True,
+            anti_spoofing=False,
+            enforce_detection=True
+        )
+        
+        if len(embedding_objs) > 0:
+            return embedding_objs[0]["embedding"]
+        return None
+
+    except ValueError as e:
+        print(f"DEBUG: Face not found (ValueError): {e}")
+        return None
     except Exception as e:
-        print(f"Warning: Could not load real database: {e}")
-        ml_resources["known_database"] = {}
-    yield
-    ml_resources.clear()
+        print(f"DEBUG: DeepFace Error: {e}")
+        traceback.print_exc()
+        return None
 
-app = FastAPI(title="Face Auth API", lifespan=lifespan)
+def load_database_from_folder(folder_path=DATABASE_FOLDER):
+    db = {}
+    print(f"DEBUG: Loading DB from {folder_path}")
+    
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path, exist_ok=True)
+        print("DEBUG: Created database folder")
+        return db
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    print(f"DEBUG: Found {len(files)} images in database")
+    
+    for filename in files:
+        filepath = os.path.join(folder_path, filename)
+        try:
+            embedding_objs = DeepFace.represent(
+                img_path=filepath,
+                model_name=MODEL_NAME,
+                detector_backend=DETECTOR_BACKEND,
+                enforce_detection=False,
+                align=True
+            )
+            
+            if len(embedding_objs) > 0:
+                db[filename] = embedding_objs[0]["embedding"]
+                print(f"DEBUG: Loaded {filename}")
+                
+        except Exception as e:
+            print(f"DEBUG: Failed to load {filename}: {e}")
+            pass
+            
+    return db
 
-class ImageRequest(BaseModel):
-    image_base64: str
+def find_match(target_encoding, database, threshold=0.4):
+    if not database:
+        return "Database Empty", 0.0, False
 
-class DebugInfo(BaseModel):
-    file: str
-    score: float
+    target_vector = np.array(target_encoding)
+    best_match_name = "None"
+    lowest_distance = 100.0 
+   
+    for filename, db_encoding in database.items():
+        db_vector = np.array(db_encoding)
+        
+        dot_product = np.dot(target_vector, db_vector)
+        norm_a = np.linalg.norm(target_vector)
+        norm_b = np.linalg.norm(db_vector)
+        
+        similarity = dot_product / (norm_a * norm_b)
+        distance = 1 - similarity
+        
+        if distance < lowest_distance:
+            lowest_distance = distance
+            best_match_name = filename
 
-class PredictionResponse(BaseModel):
-    name: str
-    disease: str
-    current_appointment: str
-    debug_info: DebugInfo
+    similarity_score = 1.0 - lowest_distance
+    is_match = lowest_distance < threshold
 
-def decode_base64_image(base64_str: str) -> Image.Image:
-    try:
-        if "," in base64_str:
-            base64_str = base64_str.split(",")[1]
-        image_data = base64.b64decode(base64_str)
-        return Image.open(io.BytesIO(image_data))
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid Base64 string")
+    return best_match_name, float(similarity_score), is_match
 
-# --- REAL ENDPOINT ---
-@app.post("/recognize", response_model=PredictionResponse)
-async def recognize_face(payload: ImageRequest):
-    known_database = ml_resources.get("known_database")
-    if known_database is None:
-        known_database = {}
-
-    try:
-        input_image = decode_base64_image(payload.image_base64)
-        target_encoding = get_face_embedding(input_image)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
-
-    if target_encoding is None:
-        return {
-            "name": "No Face Detected",
-            "disease": "NA",
-            "current_appointment": '2099-12-31',
-            "debug_info": {"file": "NA", "score": 0.0}
-        }
-
-    closest_filename, score, is_match = find_match(target_encoding, known_database, threshold=0.40)
-
-    if not is_match:
-        return {
-            "name": "Unknown",
-            "disease": "NA",
-            "current_appointment": '2099-12-31',
-            "debug_info": {
-                "file": closest_filename,
-                "score": round(score, 4)
-            }
-        }
-
-    real_name = os.path.splitext(closest_filename)[0]
-    patient_info = get_patient_info(closest_filename)
-
-    disease = patient_info["disease"] if patient_info else "Data Not Found"
-    appt_day = patient_info["current_appointment"] if patient_info else "2099-12-31"
-
-    return {
-        "name": real_name,
-        "disease": disease,
-        "current_appointment": appt_day,
-        "debug_info": {
-            "file": closest_filename,
-            "score": round(score, 4)
-        }
-    }
-
-# --- MOCK ENDPOINT ---
-@app.post("/recognize_mock", response_model=PredictionResponse)
-async def recognize_mock(payload: ImageRequest):
-
-    random_name = random.choice(list(MOCK_PATIENT_DB.keys()))
-    patient_data = MOCK_PATIENT_DB[random_name]
-
-    return {
-        "name": random_name,
-        "disease": patient_data["disease"],
-        "current_appointment": patient_data["current_appointment"],
-        "debug_info": {
-            "file": "mock_generated.jpg",
-            "score": 0.9999
-        }
-    }
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+def get_patient_info(filename):
+    if filename == "No match" or filename == "Database Empty":
+        return None
+    name_key = os.path.splitext(filename)[0]
+    return MOCK_PATIENT_DB.get(name_key)

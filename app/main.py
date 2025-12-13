@@ -2,6 +2,7 @@ import uvicorn
 import base64
 import io
 import os
+import random
 from PIL import Image
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,12 @@ from recognition import (
 )
 
 ml_resources = {}
+
+MOCK_PATIENT_DB = {
+    "Sarah": {"disease": "Diabetes", "current_appointment": "2025-12-31"},
+    "Peter": {"disease": "Blood Presure", "current_appointment": "2025-12-31"},
+    "Judy": {"disease": "Hyperlipidemia", "current_appointment": "2025-12-31"}
+}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -56,6 +63,7 @@ def decode_base64_image(base64_str: str) -> Image.Image:
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Base64 string")
 
+# --- REAL ENDPOINT ---
 @app.post("/recognize", response_model=PredictionResponse)
 async def recognize_face(payload: ImageRequest):
     known_database = ml_resources.get("known_database")
@@ -105,58 +113,22 @@ async def recognize_face(payload: ImageRequest):
         }
     }
 
-
+# --- MOCK ENDPOINT ---
 @app.post("/recognize_mock", response_model=PredictionResponse)
-async def recognize_face(payload: ImageRequest):
-    known_database = ml_resources.get("known_database")
-    if known_database is None:
-        known_database = {}
+async def recognize_mock(payload: ImageRequest):
 
-    try:
-        input_image = decode_base64_image(payload.image_base64)
-        target_encoding = get_face_embedding(input_image)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
-
-    if target_encoding is None:
-        return {
-            "name": "No Face Detected",
-            "disease": "NA",
-            "current_appointment": '2099-12-31',
-            "debug_info": {"file": "NA", "score": 0.0}
-        }
-
-    closest_filename, score, is_match = find_match(target_encoding, known_database, threshold=0.40)
-
-    if not is_match:
-        return {
-            "name": "Unknown",
-            "disease": "NA",
-            "current_appointment": '2099-12-31',
-            "debug_info": {
-                "file": closest_filename,
-                "score": round(score, 4)
-            }
-        }
-
-    real_name = os.path.splitext(closest_filename)[0]
-    patient_info = get_patient_info(closest_filename)
-
-    disease = patient_info["disease"] if patient_info else "Data Not Found"
-    appt_day = patient_info["current_appointment"] if patient_info else "2099-12-31"
+    random_name = random.choice(list(MOCK_PATIENT_DB.keys()))
+    patient_data = MOCK_PATIENT_DB[random_name]
 
     return {
-        "name": real_name,
-        "disease": disease,
-        "current_appointment": appt_day,
+        "name": random_name,
+        "disease": patient_data["disease"],
+        "current_appointment": patient_data["current_appointment"],
         "debug_info": {
-            "file": closest_filename,
-            "score": round(score, 4)
+            "file": "mock_generated.jpg",
+            "score": 0.9999
         }
     }
-
-
-
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
